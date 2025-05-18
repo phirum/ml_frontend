@@ -1,73 +1,97 @@
 import React, { useState } from 'react';
 import {
-  Box, Typography, Button, TextField, Paper, CircularProgress
+  Box, Typography, Button, Paper, CircularProgress, Snackbar, Alert
 } from '@mui/material';
-import axios from 'axios';
-import UserLayout from '../layouts/UserLayout';
-
-interface ScanResponse {
-  result: string;
-  confidence: number;
-}
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import AdminLayout from '../layouts/AdminLayout';
+import api from '../utils/axiosConfig';
 
 const QRInvoiceScanner: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
-  const [scanResult, setScanResult] = useState('');
-  const [confidence, setConfidence] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-    }
-  };
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<null | {
+    result: string;
+    threat_type: string | null;
+    confidence: number;
+    message: string;
+  }>(null);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'error',
+  });
 
   const handleScan = async () => {
     if (!file) return;
-
-    setIsLoading(true);
-    setScanResult('');
-    setConfidence(null);
+    setLoading(true);
+    setResult(null);
 
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      const response = await axios.post<ScanResponse>('/api/scan/invoice-qr', formData);
-      setScanResult(response.data.result);
-      setConfidence(response.data.confidence);
-    } catch (err: any) {
-      setScanResult('Scan failed. Please try again.');
+      const response = await api.post('/scan/invoice', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setResult(response.data);
+    } catch (error) {
+      console.error(error);
+      setSnackbar({ open: true, message: 'Scan failed', severity: 'error' });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <UserLayout>
-        <Box sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom>Invoice/QR Scanner</Typography>
-        <Paper sx={{ p: 3 }}>
-          <TextField
-            type="file"
-            inputProps={{ accept: 'image/*' }}
-            onChange={handleFileChange}
-            fullWidth
-            sx={{ mb: 2 }}
-          />
-          <Button variant="contained" color="primary" onClick={handleScan} disabled={isLoading}>
-            {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Scan'}
-          </Button>
+    <AdminLayout>
+      <Box sx={{ mt: 4, px: 3 }}>
+        <Typography variant="h4" fontWeight="bold" gutterBottom>🧾 Invoice / QR Scanner</Typography>
 
-          {scanResult && (
-            <Box sx={{ mt: 3 }}>
-              <Typography variant="subtitle1">Result: {scanResult}</Typography>
-              {confidence !== null && <Typography variant="subtitle2">Confidence: {confidence}%</Typography>}
-            </Box>
-          )}
-        </Paper>
+        <Button variant="contained" component="label" startIcon={<UploadFileIcon />} sx={{ mb: 2 }}>
+          Upload File
+          <input type="file" hidden onChange={(e) => {
+            if (e.target.files?.[0]) {
+              setFile(e.target.files[0]);
+            }
+          }} />
+        </Button>
+
+        {file && (
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Selected: <strong>{file.name}</strong>
+          </Typography>
+        )}
+
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleScan}
+          disabled={loading || !file}
+        >
+          {loading ? <CircularProgress size={20} /> : 'Scan File'}
+        </Button>
+
+        {result && (
+          <Paper sx={{ mt: 4, p: 3 }}>
+            <Typography variant="h6" gutterBottom>🔍 Scan Result</Typography>
+            <Typography>Label: <strong>{result.result}</strong></Typography>
+            <Typography>Threat Type: {result.threat_type || 'N/A'}</Typography>
+            <Typography>Confidence: {(result.confidence * 100).toFixed(2)}%</Typography>
+            <Typography color="text.secondary">{result.message}</Typography>
+          </Paper>
+        )}
+
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={3000}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+        >
+          <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
       </Box>
-    </UserLayout>
+    </AdminLayout>
   );
 };
 
