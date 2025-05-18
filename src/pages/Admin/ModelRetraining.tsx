@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Button, Paper, Snackbar, Alert,
-  CircularProgress, Grid, Divider, Table, TableHead, TableBody, TableRow, TableCell, TableContainer, TablePagination, TextField
+  CircularProgress, Grid, Divider, Table, TableHead, TableBody,
+  TableRow, TableCell, TableContainer, TablePagination, TextField
 } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip,
+  Legend, ResponsiveContainer, CartesianGrid
+} from 'recharts';
 import AdminLayout from '../../layouts/AdminLayout';
 import api from '../../utils/axiosConfig';
 
@@ -14,8 +19,8 @@ interface RetrainLog {
   admin_email: string;
   dataset_filename: string;
   accuracy: number;
-  f1_malicious: number;
-  f1_benign: number;
+  f1_malicious?: number;
+  f1_benign?: number;
   model_version: string;
 }
 
@@ -24,8 +29,8 @@ const ModelRetraining: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState<null | {
     accuracy: number;
-    malicious_f1: number;
-    benign_f1: number;
+    malicious_f1?: number;
+    benign_f1?: number;
   }>(null);
   const [logs, setLogs] = useState<RetrainLog[]>([]);
   const [snackbar, setSnackbar] = useState({
@@ -83,10 +88,7 @@ const ModelRetraining: React.FC = () => {
     fetchLogs();
   }, []);
 
-  const handleChangePage = (event: unknown, newPage: number) => {
-    setPage(newPage);
-  };
-
+  const handleChangePage = (event: unknown, newPage: number) => setPage(newPage);
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
@@ -132,23 +134,41 @@ const ModelRetraining: React.FC = () => {
 
         <Grid container spacing={3}>
           {metrics && (
-             <Grid size={{ xs: 12, md: 6 }}>
+           <Grid size={{ xs: 12, md: 6 }}>
               <Paper elevation={3} sx={{ p: 3 }}>
                 <Typography variant="h6" gutterBottom>📊 Retraining Metrics</Typography>
                 <Divider sx={{ mb: 2 }} />
-                <Typography>Accuracy: <strong>{metrics.accuracy}</strong></Typography>
-                <Typography>Malicious F1: <strong>{metrics.malicious_f1}</strong></Typography>
-                <Typography>Benign F1: <strong>{metrics.benign_f1}</strong></Typography>
+                <Typography>Accuracy: <strong>{metrics.accuracy.toFixed(3)}</strong></Typography>
+                <Typography>Malicious F1: <strong>{metrics.malicious_f1?.toFixed(3) || 'N/A'}</strong></Typography>
+                <Typography>Benign F1: <strong>{metrics.benign_f1?.toFixed(3) || 'N/A'}</strong></Typography>
               </Paper>
             </Grid>
           )}
         </Grid>
 
+        {filteredLogs.length > 0 && (
+          <Paper sx={{ mt: 5, p: 2 }}>
+            <Typography variant="h6" gutterBottom>📈 Performance Over Time</Typography>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={filteredLogs}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="timestamp" tickFormatter={(ts) => new Date(ts).toLocaleDateString()} />
+                <YAxis domain={[0, 1]} />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="accuracy" stroke="#1976d2" name="Accuracy" />
+                <Line type="monotone" dataKey="f1_malicious" stroke="#d32f2f" name="F1 - Malicious" />
+                <Line type="monotone" dataKey="f1_benign" stroke="#388e3c" name="F1 - Benign" />
+              </LineChart>
+            </ResponsiveContainer>
+          </Paper>
+        )}
+
         <Box mt={4}>
           <Typography variant="h6" gutterBottom>🗒️ Retraining Logs</Typography>
 
           <Grid container spacing={2} mb={2}>
-              <Grid size={{ xs: 12, md: 6 }}>
+          <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 label="Filter by Admin Email"
                 variant="outlined"
@@ -157,7 +177,7 @@ const ModelRetraining: React.FC = () => {
                 onChange={(e) => setFilterAdmin(e.target.value)}
               />
             </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 label="Min Accuracy"
                 variant="outlined"
@@ -185,17 +205,19 @@ const ModelRetraining: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredLogs.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((log, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
-                        <TableCell>{log.admin_email}</TableCell>
-                        <TableCell>{log.dataset_filename}</TableCell>
-                        <TableCell>{log.accuracy.toFixed(3)}</TableCell>
-                        <TableCell>{log.f1_malicious.toFixed(3)}</TableCell>
-                        <TableCell>{log.f1_benign.toFixed(3)}</TableCell>
-                        <TableCell>{log.model_version}</TableCell>
-                      </TableRow>
-                    ))}
+                    {filteredLogs
+                      .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                      .map((log, index) => (
+                        <TableRow key={index}>
+                          <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
+                          <TableCell>{log.admin_email}</TableCell>
+                          <TableCell>{log.dataset_filename}</TableCell>
+                          <TableCell>{log.accuracy.toFixed(3)}</TableCell>
+                          <TableCell>{log.f1_malicious?.toFixed(3) || 'N/A'}</TableCell>
+                          <TableCell>{log.f1_benign?.toFixed(3) || 'N/A'}</TableCell>
+                          <TableCell>{log.model_version}</TableCell>
+                        </TableRow>
+                      ))}
                   </TableBody>
                 </Table>
               </TableContainer>
